@@ -18,17 +18,38 @@ class AdminApplicationController extends Controller
             $data = Application::with(['resident', 'serviceType'])->latest()->get();
             return datatables()->of($data)
                 ->addIndexColumn()
-                ->addColumn('action', function($row){
-                    $btn = '<a href="/admin/application/'.$row->id.'" class="btn btn-primary btn-sm">Detail & Proses</a>';
+                ->addColumn('action', function ($row) {
+                    $btn = '<a href="/admin/application/' . $row->id . '" class="btn btn-primary btn-sm">Detail & Proses</a>';
                     return $btn;
                 })
-                ->addColumn('status_label', function($row){
-                    return '<span class="badge bg-'.$row->status_color.'">'.strtoupper($row->status).'</span>';
+                ->addColumn('status_label', function ($row) {
+                    return '<span class="badge bg-' . $row->status_color . '">' . strtoupper($row->status) . '</span>';
                 })
                 ->rawColumns(['action', 'status_label'])
                 ->make(true);
         }
         return view('admin.applications.index');
+    }
+
+    // TAMBAHAN: Dashboard Statistik
+    public function dashboard()
+    {
+        // Hitung statistik untuk cards dashboard
+        $stats = [
+            'total' => Application::count(),
+            'pending' => Application::where('status', 'pending')->count(),
+            'verified' => Application::where('status', 'verified')->count(),
+            'approved' => Application::where('status', 'approved')->count(),
+            'rejected' => Application::where('status', 'rejected')->count(),
+
+            // Ambil 5 log aktivitas terbaru
+            'recent_logs' => ApplicationLog::with(['user', 'application.resident'])
+                ->latest()
+                ->limit(5)
+                ->get()
+        ];
+
+        return view('dashboard', compact('stats'));
     }
 
     // 2. Halaman Detail & Verifikasi
@@ -89,11 +110,11 @@ class AdminApplicationController extends Controller
     {
         $app = Application::findOrFail($id);
 
-        if($app->status != 'approved') {
+        if ($app->status != 'approved') {
             abort(403, 'Permohonan belum disetujui');
         }
 
         $pdf = PDF::loadView('admin.pdf.letter_template', compact('app'));
-        return $pdf->stream('Surat_Rekomendasi_'.$app->nomor_tiket.'.pdf');
+        return $pdf->stream('Surat_Rekomendasi_' . $app->nomor_tiket . '.pdf');
     }
 }
