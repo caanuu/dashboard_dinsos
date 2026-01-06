@@ -7,34 +7,18 @@ use App\Models\ApplicationLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
-use PDF;
+use Illuminate\Support\Str; // PENTING: Untuk membatasi teks (Str::limit)
+use Barryvdh\DomPDF\Facade\Pdf; // PENTING: Gunakan Facade PDF yang benar
+use Yajra\DataTables\Facades\DataTables; // PENTING: Gunakan Facade DataTables
 
 class AdminApplicationController extends Controller
 {
-    // 1. Menampilkan Daftar Permohonan (Datatables)
-    public function index(Request $request)
-    {
-        if ($request->ajax()) {
-            $data = Application::with(['resident', 'serviceType'])->latest()->get();
-            return datatables()->of($data)
-                ->addIndexColumn()
-                ->addColumn('action', function ($row) {
-                    $btn = '<a href="/admin/application/' . $row->id . '" class="btn btn-primary btn-sm">Detail & Proses</a>';
-                    return $btn;
-                })
-                ->addColumn('status_label', function ($row) {
-                    return '<span class="badge bg-' . $row->status_color . '">' . strtoupper($row->status) . '</span>';
-                })
-                ->rawColumns(['action', 'status_label'])
-                ->make(true);
-        }
-        return view('admin.applications.index');
-    }
-
-    // TAMBAHAN: Dashboard Statistik
+    /**
+     * Menampilkan Halaman Dashboard Statistik
+     */
     public function dashboard()
     {
-        // Hitung statistik untuk cards dashboard
+        // Statistik Utama
         $stats = [
             'total' => Application::count(),
             'pending' => Application::where('status', 'pending')->count(),
@@ -42,7 +26,7 @@ class AdminApplicationController extends Controller
             'approved' => Application::where('status', 'approved')->count(),
             'rejected' => Application::where('status', 'rejected')->count(),
 
-            // Ambil 5 log aktivitas terbaru
+            // Mengambil 5 aktivitas terbaru untuk timeline
             'recent_logs' => ApplicationLog::with(['user', 'application.resident'])
                 ->latest()
                 ->limit(5)
@@ -52,15 +36,48 @@ class AdminApplicationController extends Controller
         return view('dashboard', compact('stats'));
     }
 
-    // 2. Halaman Detail & Verifikasi
+    /**
+     * Menampilkan Daftar Permohonan (DataTables JSON & View)
+     */
+    public function index(Request $request)
+    {
+        if ($request->ajax()) {
+            // Menggunakan 'with' untuk Eager Loading agar query cepat
+            $data = Application::with(['resident', 'serviceType'])->latest();
+
+            return DataTables::of($data)
+                ->addIndexColumn()
+                ->addColumn('action', function ($row) {
+                    $btn = '<a href="' . route('admin.application.show', $row->id) . '" class="btn btn-primary btn-sm shadow-sm"><i class="fas fa-eye"></i> Detail</a>';
+                    return $btn;
+                })
+                ->addColumn('status_label', function ($row) {
+                    // Menggunakan accessor getStatusColorAttribute dari Model
+                    $color = $row->status_color ?? 'secondary';
+                    return '<span class="badge bg-' . $color . ' text-uppercase">' . $row->status . '</span>';
+                })
+                ->editColumn('created_at', function ($row) {
+                    return $row->created_at->format('d/m/Y H:i');
+                })
+                ->rawColumns(['action', 'status_label'])
+                ->make(true);
+        }
+        return view('admin.applications.index');
+    }
+
+    /**
+     * Menampilkan Detail Permohonan
+     */
     public function show($id)
     {
-        $application = Application::with('logs.user')->findOrFail($id);
+        // Ambil data beserta log history-nya
+        $application = Application::with(['resident', 'serviceType', 'logs.user'])->findOrFail($id);
         return view('admin.applications.show', compact('application'));
     }
 
-    // 3. LOGIKA UTAMA: Proses Status (Approve/Reject/Verifikasi)
-    // Menggunakan DB Transaction agar data aman
+    /**
+     * Memproses Status (Verifikasi / Setuju / Tolak)
+     */
     public function process(Request $request, $id)
     {
         $request->validate([
@@ -71,11 +88,12 @@ class AdminApplicationController extends Controller
         $app = Application::findOrFail($id);
         $user = Auth::user();
 
+        // Gunakan Transaction agar data aman
         DB::transaction(function () use ($app, $request, $user) {
             $newStatus = $app->status;
             $logAction = '';
 
-            // Logika State Machine Sederhana
+            // Logika Status Berjenjang
             if ($request->action == 'verify') {
                 $newStatus = 'verified';
                 $logAction = 'MEMVERIFIKASI BERKAS';
@@ -87,34 +105,41 @@ class AdminApplicationController extends Controller
                 $logAction = 'MENOLAK PERMOHONAN';
             }
 
-            // Update Status
+            // Update Data Aplikasi
             $app->update([
                 'status' => $newStatus,
                 'keterangan_tolak' => $request->action == 'reject' ? $request->catatan : null
             ]);
 
-            // Catat Log (Penting untuk Laporan: Transparansi)
+            // Catat Log (Audit Trail)
             ApplicationLog::create([
                 'application_id' => $app->id,
                 'user_id' => $user->id,
                 'action' => $logAction,
-                'catatan' => $request->catatan
+                'catatan' => $request->catatan ?? '-'
             ]);
         });
 
         return redirect()->back()->with('success', 'Status permohonan berhasil diperbarui.');
     }
 
-    // 4. Cetak Surat Otomatis (Hanya jika Approved)
+    /**
+     * Cetak Surat PDF
+     */
     public function printLetter($id)
     {
-        $app = Application::findOrFail($id);
+        $app = Application::with(['resident', 'serviceType'])->findOrFail($id);
 
         if ($app->status != 'approved') {
-            abort(403, 'Permohonan belum disetujui');
+            abort(403, 'Permohonan belum disetujui, surat tidak dapat dicetak.');
         }
 
-        $pdf = PDF::loadView('admin.pdf.letter_template', compact('app'));
+        // Load View PDF
+        $pdf = Pdf::loadView('admin.applications.pdf.letter_template', compact('app'));
+
+        // Setup Ukuran Kertas F4/A4
+        $pdf->setPaper('A4', 'portrait');
+
         return $pdf->stream('Surat_Rekomendasi_' . $app->nomor_tiket . '.pdf');
     }
 }
