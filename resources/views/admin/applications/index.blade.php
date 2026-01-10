@@ -5,6 +5,12 @@
         <div class="card-header bg-white py-3">
             <h5 class="mb-0 text-primary fw-bold">Daftar Permohonan Masuk</h5>
         </div>
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 text-primary fw-bold">Daftar Permohonan Masuk</h5>
+            <a href="{{ route('admin.application.create') }}" class="btn btn-primary btn-sm shadow-sm">
+                <i class="fas fa-plus me-1"></i> Input Permohonan Baru
+            </a>
+        </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-bordered table-hover" id="appTable">
