@@ -21,6 +21,12 @@ class Application extends Model
         return $this->hasMany(ApplicationLog::class)->orderBy('created_at', 'desc');
     }
 
+    // TAMBAHKAN INI
+    public function distribution()
+    {
+        return $this->hasOne(Distribution::class);
+    }
+
     public function getStatusColorAttribute()
     {
         return match ($this->status) {

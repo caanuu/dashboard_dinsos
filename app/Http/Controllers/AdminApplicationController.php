@@ -5,11 +5,8 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage; // Penting untuk file
 use Yajra\DataTables\Facades\DataTables;
 use Barryvdh\DomPDF\Facade\Pdf;
-
-// Import Model
 use App\Models\Application;
 use App\Models\ApplicationLog;
 use App\Models\Resident;
@@ -18,6 +15,7 @@ use App\Models\User;
 
 class AdminApplicationController extends Controller
 {
+    // 1. DASHBOARD MONEV
     public function dashboard()
     {
         $stats = [
@@ -26,17 +24,93 @@ class AdminApplicationController extends Controller
             'verified' => Application::where('status', 'verified')->count(),
             'approved' => Application::where('status', 'approved')->count(),
             'rejected' => Application::where('status', 'rejected')->count(),
-            'recent_logs' => ApplicationLog::with(['user', 'application'])->latest()->limit(5)->get()
+            'recent_logs' => ApplicationLog::with(['user', 'application'])->latest()->limit(5)->get(),
+            'total_aduan' => DB::table('complaints')->count(),
+            'aduan_baru' => DB::table('complaints')->where('status', 'masuk')->count(),
+            'recent_complaints' => DB::table('complaints')->orderBy('created_at', 'desc')->limit(5)->get()
         ];
-        return view('dashboard', compact('stats'));
+
+        // LOGIC GRAFIK
+        $chartData = array_fill(1, 12, 0);
+        $monthlyData = Application::selectRaw('MONTH(created_at) as bulan, COUNT(*) as total')
+            ->whereYear('created_at', date('Y'))
+            ->groupBy('bulan')
+            ->pluck('total', 'bulan')
+            ->toArray();
+
+        foreach ($monthlyData as $bulan => $total) {
+            $chartData[$bulan] = $total;
+        }
+
+        // LOGIC GRAFIK PIE
+        $statusRaw = Application::selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status')
+            ->toArray();
+
+        $statusData = [
+            $statusRaw['pending'] ?? 0,
+            $statusRaw['verified'] ?? 0,
+            $statusRaw['approved'] ?? 0,
+            $statusRaw['rejected'] ?? 0,
+            $statusRaw['distributed'] ?? 0,
+        ];
+
+        return view('dashboard', compact('stats', 'chartData', 'statusData'));
     }
 
+    // 2. HALAMAN LIST (INDEX)
+    public function index(Request $request)
+    {
+        if ($request->ajax()) {
+            $data = Application::with(['resident', 'serviceType'])
+                ->select('applications.*')
+                ->latest();
+
+            return DataTables::of($data)
+                ->addIndexColumn()
+                ->addColumn('action', function ($row) {
+                    return '<a href="' . route('admin.application.show', $row->id) . '" class="btn btn-sm btn-primary shadow-sm"><i class="fas fa-eye me-1"></i>Detail</a>';
+                })
+                ->addColumn('status_label', function ($row) {
+                    $color = match ($row->status) {
+                        'pending' => 'warning',
+                        'verified' => 'info',
+                        'approved' => 'success',
+                        'rejected' => 'danger',
+                        'distributed' => 'success',
+                        default => 'secondary',
+                    };
+                    return '<span class="badge bg-' . $color . '">' . strtoupper($row->status) . '</span>';
+                })
+                ->addColumn('skor', function ($row) {
+                    $badge = $row->skor_kelayakan > 70 ? 'success' : ($row->skor_kelayakan > 40 ? 'warning' : 'danger');
+                    return '<span class="badge bg-' . $badge . '">Skor: ' . $row->skor_kelayakan . '</span>';
+                })
+                ->addColumn('source', function ($row) {
+                    if ($row->is_online == 1) {
+                        return '<span class="badge bg-info text-dark"><i class="fas fa-globe me-1"></i> WEB</span>';
+                    } else {
+                        return '<span class="badge bg-secondary"><i class="fas fa-store me-1"></i> LOKET</span>';
+                    }
+                })
+                ->editColumn('created_at', function ($row) {
+                    return $row->created_at->format('d/m/Y H:i');
+                })
+                ->rawColumns(['action', 'status_label', 'skor', 'source'])
+                ->make(true);
+        }
+        return view('admin.applications.index');
+    }
+
+    // 3. FORM INPUT
     public function create()
     {
         $services = ServiceType::all();
         return view('admin.applications.create', compact('services'));
     }
 
+    // 4. PROSES SIMPAN (STORE)
     public function store(Request $request)
     {
         $request->validate([
@@ -45,19 +119,24 @@ class AdminApplicationController extends Controller
             'nama_lengkap' => 'required|string|max:255',
             'alamat' => 'required|string',
             'service_type_id' => 'required|exists:service_types,id',
-            // Validasi File (Max 2MB, PDF/JPG/PNG)
             'berkas' => 'required|file|mimes:pdf,jpg,jpeg,png|max:2048',
+            'penghasilan' => 'required|numeric',
+            'jumlah_tanggungan' => 'required|numeric',
         ]);
 
-        DB::transaction(function () use ($request) {
-            // 1. Upload File
-            $filePath = null;
-            if ($request->hasFile('berkas')) {
-                // Simpan di folder: storage/app/public/persyaratan
-                $filePath = $request->file('berkas')->store('persyaratan', 'public');
-            }
+        $isDuplicate = Application::whereHas('resident', function ($q) use ($request) {
+            $q->where('nik', $request->nik);
+        })->where('service_type_id', $request->service_type_id)
+            ->whereIn('status', ['pending', 'verified', 'approved'])
+            ->exists();
 
-            // 2. Data Penduduk
+        if ($isDuplicate) {
+            return back()->with('error', 'GAGAL: Penduduk ini sedang memiliki permohonan aktif untuk layanan tersebut.');
+        }
+
+        DB::transaction(function () use ($request) {
+            $filePath = $request->file('berkas')->store('persyaratan', 'public');
+
             $resident = Resident::updateOrCreate(
                 ['nik' => $request->nik],
                 [
@@ -65,73 +144,71 @@ class AdminApplicationController extends Controller
                     'nama_lengkap' => $request->nama_lengkap,
                     'alamat' => $request->alamat,
                     'pekerjaan' => $request->pekerjaan,
-                    'is_dtks' => $request->has('is_dtks') ? true : false, // Checkbox DTKS
+                    'no_hp' => $request->no_hp ?? null,
+                    'penghasilan' => $request->penghasilan,
+                    'jumlah_tanggungan' => $request->jumlah_tanggungan,
+                    'is_dtks' => $request->has('is_dtks'),
                 ]
             );
 
-            // 3. Nomor Tiket
+            $skor = 0;
+            if ($resident->is_dtks)
+                $skor += 50;
+            if ($resident->penghasilan <= 1000000)
+                $skor += 30;
+            elseif ($resident->penghasilan <= 2500000)
+                $skor += 10;
+            if ($resident->jumlah_tanggungan >= 4)
+                $skor += 20;
+            elseif ($resident->jumlah_tanggungan >= 2)
+                $skor += 10;
+
             $service = ServiceType::find($request->service_type_id);
             $tiket = $service->kode_layanan . '-' . date('ym') . '-' . rand(1000, 9999);
+            $validasiDukcapil = (substr($request->nik, 0, 2) == '12');
 
-            // 4. Simpan Aplikasi
             $app = Application::create([
                 'resident_id' => $resident->id,
                 'service_type_id' => $service->id,
                 'nomor_tiket' => $tiket,
-                'file_persyaratan' => $filePath, // Simpan Path
-                'status' => 'pending'
+                'file_persyaratan' => $filePath,
+                'status' => 'pending',
+                'skor_kelayakan' => $skor,
+                'validasi_dukcapil' => $validasiDukcapil,
+                'is_online' => 0
             ]);
 
-            // 5. Log
             ApplicationLog::create([
                 'application_id' => $app->id,
                 'user_id' => Auth::id(),
                 'action' => 'INPUT PERMOHONAN',
-                'catatan' => 'Input baru dengan berkas persyaratan.'
+                'catatan' => "Input Baru (Loket). Skor Sistem: {$skor}"
             ]);
         });
 
-        return redirect()->route('admin.application.index')->with('success', 'Permohonan berhasil dikirim.');
+        return redirect()->route('admin.application.index')->with('success', 'Permohonan berhasil disimpan.');
     }
 
-    public function index(Request $request)
-    {
-        if ($request->ajax()) {
-            $data = Application::with(['resident', 'serviceType'])->latest();
-            return DataTables::of($data)
-                ->addIndexColumn()
-                ->addColumn('action', function ($row) {
-                    return '<a href="' . route('admin.application.show', $row->id) . '" class="btn btn-sm btn-primary shadow-sm">Detail</a>';
-                })
-                ->addColumn('status_label', function ($row) {
-                    return '<span class="badge bg-' . $row->status_color . '">' . strtoupper($row->status) . '</span>';
-                })
-                ->editColumn('created_at', function ($row) {
-                    return $row->created_at->format('d/m/Y H:i');
-                })
-                ->rawColumns(['action', 'status_label'])
-                ->make(true);
-        }
-        return view('admin.applications.index');
-    }
-
+    // 5. HALAMAN DETAIL (SHOW)
     public function show($id)
     {
-        $application = Application::with(['resident', 'serviceType', 'logs.user'])->findOrFail($id);
+        $application = Application::with(['resident', 'serviceType', 'logs.user', 'distribution'])->findOrFail($id);
         return view('admin.applications.show', compact('application'));
     }
 
+    // 6. PROSES VERIFIKASI/APPROVE (BAGIAN YANG DIPERBAIKI)
     public function process(Request $request, $id)
     {
         $app = Application::findOrFail($id);
-        /** @var User $user */
+
+        /** @var \App\Models\User $user */ // <-- PERBAIKAN: Memberitahu sistem tipe variabel $user
         $user = Auth::user();
 
-        if ($request->action == 'approve' && !$user->hasRole('kadis')) {
-            return back()->with('error', 'Hanya Kepala Dinas yang boleh menyetujui.');
-        }
-        if ($request->action == 'verify' && !$user->hasRole(['operator', 'admin'])) {
-            return back()->with('error', 'Hanya Operator yang boleh memverifikasi.');
+        // Cek permission manual
+        if ($request->action == 'approve') {
+            if (!$user || !$user->hasRole('kadis')) {
+                return back()->with('error', 'Hanya Kepala Dinas yang boleh menyetujui.');
+            }
         }
 
         DB::transaction(function () use ($app, $request, $user) {
@@ -158,10 +235,12 @@ class AdminApplicationController extends Controller
         return back()->with('success', 'Status berhasil diperbarui.');
     }
 
+    // 7. CETAK SURAT
     public function printLetter($id)
     {
         $app = Application::with(['resident', 'serviceType'])->findOrFail($id);
-        if ($app->status != 'approved') abort(403);
+        if ($app->status != 'approved')
+            abort(403);
 
         $pdf = Pdf::loadView('admin.applications.pdf.letter_template', compact('app'));
         return $pdf->stream('Surat_' . $app->nomor_tiket . '.pdf');

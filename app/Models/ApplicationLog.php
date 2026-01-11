@@ -12,4 +12,10 @@ class ApplicationLog extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    // --- TAMBAHKAN BAGIAN INI ---
+    public function application()
+    {
+        return $this->belongsTo(Application::class);
+    }
 }

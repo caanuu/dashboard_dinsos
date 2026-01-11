@@ -2,48 +2,83 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\User;
+use App\Models\Resident;
 use App\Models\ServiceType;
+// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
+    /**
+     * Seed the application's database.
+     */
     public function run(): void
     {
-        // 1. Akun ADMIN (Superuser)
+        // 1. Buat User Admin, Operator, dan Kadis
         User::create([
-            'name' => 'Administrator Sistem',
+            'name' => 'Administrator',
             'email' => 'admin@dinsos.go.id',
-            'password' => bcrypt('password'),
-            'role' => 'admin'
+            'password' => Hash::make('password'),
+            'role' => 'admin',
         ]);
 
-        // 2. Akun OPERATOR (Petugas Loket/Front Desk)
         User::create([
-            'name' => 'Petugas Pelayanan',
+            'name' => 'Operator Pelayanan',
             'email' => 'operator@dinsos.go.id',
-            'password' => bcrypt('password'),
-            'role' => 'operator'
+            'password' => Hash::make('password'),
+            'role' => 'operator',
         ]);
 
-        // 3. Akun KEPALA DINAS (Untuk Approval)
         User::create([
-            'name' => 'Kepala Dinas Sosial',
+            'name' => 'Kepala Dinas',
             'email' => 'kadis@dinsos.go.id',
-            'password' => bcrypt('password'),
-            'role' => 'kadis'
+            'password' => Hash::make('password'),
+            'role' => 'kadis',
         ]);
 
-        // 4. Master Data Layanan (Contoh Nyata)
-        $layanan = [
-            ['nama_layanan' => 'Rekomendasi BPJS PBI (Gratis)', 'kode_layanan' => 'BPJS-PBI'],
-            ['nama_layanan' => 'Surat Keterangan Tidak Mampu (SKTM)', 'kode_layanan' => 'SKTM-UMUM'],
-            ['nama_layanan' => 'Rekomendasi KIP Kuliah', 'kode_layanan' => 'KIP-KULIAH'],
-            ['nama_layanan' => 'Bantuan Logistik Bencana', 'kode_layanan' => 'LOGISTIK-01'],
-        ];
+        // 2. Buat Data Jenis Layanan (Service Types)
+        // PERBAIKAN: Menambahkan field 'jenis_bantuan'
+        ServiceType::create([
+            'nama_layanan' => 'Rekomendasi BPJS PBI (Gratis)',
+            'kode_layanan' => 'BPJS-PBI',
+            'jenis_bantuan' => 'Jasa', // Ditambahkan
+            'deskripsi' => 'Rekomendasi untuk pembuatan BPJS Kesehatan yang iurannya dibayar pemerintah.',
+        ]);
 
-        foreach ($layanan as $l) {
-            ServiceType::create($l);
-        }
+        ServiceType::create([
+            'nama_layanan' => 'Surat Keterangan Tidak Mampu (SKTM)',
+            'kode_layanan' => 'SKTM-UMUM',
+            'jenis_bantuan' => 'Jasa', // Ditambahkan
+            'deskripsi' => 'Surat keterangan untuk keperluan administrasi sekolah atau rumah sakit.',
+        ]);
+
+        ServiceType::create([
+            'nama_layanan' => 'Bantuan Logistik Bencana',
+            'kode_layanan' => 'LOGISTIK-01',
+            'jenis_bantuan' => 'Sembako', // Ditambahkan
+            'deskripsi' => 'Bantuan berupa sembako/pakaian untuk korban bencana.',
+        ]);
+
+        ServiceType::create([
+            'nama_layanan' => 'Santunan Lansia',
+            'kode_layanan' => 'TUNAI-LANSIA',
+            'jenis_bantuan' => 'Tunai', // Ditambahkan
+            'deskripsi' => 'Bantuan uang tunai bulanan untuk lanjut usia terlantar.',
+        ]);
+
+        // 3. Buat Data Penduduk Dummy (Optional)
+        Resident::create([
+            'nik' => '1234567890123456',
+            'no_kk' => '1234567890123456',
+            'nama_lengkap' => 'Budi Santoso',
+            'alamat' => 'Jl. Merdeka No. 1, Medan',
+            'pekerjaan' => 'Buruh Harian Lepas',
+            'penghasilan' => 1500000,
+            'jumlah_tanggungan' => 3,
+            'is_dtks' => true,
+            'no_hp' => '081234567890',
+        ]);
     }
 }
