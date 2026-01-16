@@ -11,9 +11,8 @@ class UserController extends Controller
 {
     public function index()
     {
-        // Pastikan view mengarah ke folder yang benar
         $users = User::all();
-        return view('admin.applications.users.index', compact('users'));
+        return view('admin.users.index', compact('users'));
     }
 
     public function store(Request $request)

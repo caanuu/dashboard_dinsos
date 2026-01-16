@@ -54,4 +54,22 @@ class User extends Authenticatable
         }
         return $this->role === $roles;
     }
+
+    // Helper untuk cek apakah user adalah admin/petugas
+    public function isAdmin()
+    {
+        return $this->role === 'admin';
+    }
+
+    // Helper untuk cek apakah user adalah masyarakat
+    public function isMasyarakat()
+    {
+        return $this->role === 'masyarakat';
+    }
+
+    // Relasi ke applications (untuk masyarakat)
+    public function applications()
+    {
+        return $this->hasMany(Application::class);
+    }
 }

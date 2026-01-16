@@ -16,69 +16,96 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. Buat User Admin, Operator, dan Kadis
+        // ========================================
+        // SIKASOS - Sistem Informasi Kesejahteraan Sosial
+        // ========================================
+
+        // 1. Buat User Admin/Petugas dan Masyarakat
         User::create([
-            'name' => 'Administrator',
-            'email' => 'admin@dinsos.go.id',
-            'password' => Hash::make('password'),
+            'name' => 'Admin SIKASOS',
+            'email' => 'admin@sikasos.go.id',
+            'password' => Hash::make('admin123'),
             'role' => 'admin',
         ]);
 
-        User::create([
-            'name' => 'Operator Pelayanan',
-            'email' => 'operator@dinsos.go.id',
-            'password' => Hash::make('password'),
-            'role' => 'operator',
+        $userMasyarakat = User::create([
+            'name' => 'Budi Santoso',
+            'email' => 'budi@example.com',
+            'password' => Hash::make('masyarakat123'),
+            'role' => 'masyarakat',
         ]);
 
         User::create([
-            'name' => 'Kepala Dinas',
-            'email' => 'kadis@dinsos.go.id',
-            'password' => Hash::make('password'),
-            'role' => 'kadis',
+            'name' => 'Siti Aminah',
+            'email' => 'siti@example.com',
+            'password' => Hash::make('masyarakat123'),
+            'role' => 'masyarakat',
         ]);
 
         // 2. Buat Data Jenis Layanan (Service Types)
-        // PERBAIKAN: Menambahkan field 'jenis_bantuan'
-        ServiceType::create([
+        $serviceBPJS = ServiceType::create([
             'nama_layanan' => 'Rekomendasi BPJS PBI (Gratis)',
             'kode_layanan' => 'BPJS-PBI',
-            'jenis_bantuan' => 'Jasa', // Ditambahkan
+            'jenis_bantuan' => 'jasa',
             'deskripsi' => 'Rekomendasi untuk pembuatan BPJS Kesehatan yang iurannya dibayar pemerintah.',
         ]);
 
-        ServiceType::create([
+        $serviceSKTM = ServiceType::create([
             'nama_layanan' => 'Surat Keterangan Tidak Mampu (SKTM)',
             'kode_layanan' => 'SKTM-UMUM',
-            'jenis_bantuan' => 'Jasa', // Ditambahkan
+            'jenis_bantuan' => 'jasa',
             'deskripsi' => 'Surat keterangan untuk keperluan administrasi sekolah atau rumah sakit.',
         ]);
 
-        ServiceType::create([
+        $serviceLogistik = ServiceType::create([
             'nama_layanan' => 'Bantuan Logistik Bencana',
             'kode_layanan' => 'LOGISTIK-01',
-            'jenis_bantuan' => 'Sembako', // Ditambahkan
+            'jenis_bantuan' => 'sembako',
             'deskripsi' => 'Bantuan berupa sembako/pakaian untuk korban bencana.',
         ]);
 
-        ServiceType::create([
+        $serviceLansia = ServiceType::create([
             'nama_layanan' => 'Santunan Lansia',
             'kode_layanan' => 'TUNAI-LANSIA',
-            'jenis_bantuan' => 'Tunai', // Ditambahkan
+            'jenis_bantuan' => 'tunai',
             'deskripsi' => 'Bantuan uang tunai bulanan untuk lanjut usia terlantar.',
         ]);
 
-        // 3. Buat Data Penduduk Dummy (Optional)
-        Resident::create([
+        // 3. Buat Data Penduduk Dummy
+        $resident1 = Resident::create([
             'nik' => '1234567890123456',
             'no_kk' => '1234567890123456',
             'nama_lengkap' => 'Budi Santoso',
-            'alamat' => 'Jl. Merdeka No. 1, Medan',
+            'alamat' => 'Jl. Merdeka No. 1, Tebing Tinggi',
             'pekerjaan' => 'Buruh Harian Lepas',
             'penghasilan' => 1500000,
             'jumlah_tanggungan' => 3,
             'is_dtks' => true,
             'no_hp' => '081234567890',
+        ]);
+
+        $resident2 = Resident::create([
+            'nik' => '1234567890123457',
+            'no_kk' => '1234567890123457',
+            'nama_lengkap' => 'Siti Aminah',
+            'alamat' => 'Jl. Sudirman No. 45, Tebing Tinggi',
+            'pekerjaan' => 'Pedagang Kecil',
+            'penghasilan' => 1200000,
+            'jumlah_tanggungan' => 2,
+            'is_dtks' => true,
+            'no_hp' => '081234567891',
+        ]);
+
+        $resident3 = Resident::create([
+            'nik' => '1234567890123458',
+            'no_kk' => '1234567890123458',
+            'nama_lengkap' => 'Ahmad Yani',
+            'alamat' => 'Jl. Gatot Subroto No. 12, Tebing Tinggi',
+            'pekerjaan' => 'Pensiunan',
+            'penghasilan' => 800000,
+            'jumlah_tanggungan' => 1,
+            'is_dtks' => false,
+            'no_hp' => '081234567892',
         ]);
     }
 }

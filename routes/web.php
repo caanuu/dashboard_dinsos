@@ -7,52 +7,78 @@ use App\Http\Controllers\PublicController;
 use App\Http\Controllers\DistributionController;
 use App\Http\Controllers\ServiceTypeController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\MasyarakatController;
 
 /*
 |--------------------------------------------------------------------------
-| Web Routes
+| Web Routes - SIKASOS
 |--------------------------------------------------------------------------
 */
 
 // 1. HALAMAN PUBLIK
 Route::get('/', [PublicController::class, 'index'])->name('home');
 Route::get('/tracking', [PublicController::class, 'tracking'])->name('tracking');
-Route::get('/lapor', [PublicController::class, 'lapor'])->name('lapor.index');
-Route::post('/lapor', [PublicController::class, 'storeLapor'])->name('lapor.store');
 
-// TAMBAHAN: PERMOHONAN ONLINE
-Route::get('/ajukan', [PublicController::class, 'createApplication'])->name('public.application.create');
-Route::post('/ajukan', [PublicController::class, 'storeApplication'])->name('public.application.store');
-
-// 2. OTENTIKASI
+// 2. AUTENTIKASI
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [AuthController::class, 'login']);
+    Route::get('/register', [AuthController::class, 'showRegisterForm'])->name('register');
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::get('/reset-password', [AuthController::class, 'showResetForm'])->name('password.reset');
+    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 });
 
-// 3. AREA ADMIN (DASHBOARD)
-Route::middleware(['auth'])->group(function () {
-    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
+
+// 3. AREA MASYARAKAT (Harus Login sebagai Masyarakat)
+Route::middleware(['auth', 'role:masyarakat'])->prefix('masyarakat')->name('masyarakat.')->group(function () {
+    Route::get('/dashboard', [MasyarakatController::class, 'dashboard'])->name('dashboard');
+    
+    // Pengajuan Bantuan
+    Route::get('/applications', [MasyarakatController::class, 'myApplications'])->name('applications.index');
+    Route::get('/applications/create', [MasyarakatController::class, 'createApplication'])->name('applications.create');
+    Route::post('/applications', [MasyarakatController::class, 'storeApplication'])->name('applications.store');
+    Route::get('/applications/{id}', [MasyarakatController::class, 'showApplication'])->name('applications.show');
+    
+    // Profil
+    Route::get('/profile', [MasyarakatController::class, 'profile'])->name('profile');
+    Route::put('/profile', [MasyarakatController::class, 'updateProfile'])->name('profile.update');
+});
+
+// 4. AREA ADMIN (Harus Login sebagai Admin)
+Route::middleware(['auth', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
+    // Dashboard
     Route::get('/dashboard', [AdminApplicationController::class, 'dashboard'])->name('dashboard');
-
-    Route::prefix('admin')->name('admin.')->group(function () {
-        // Module Permohonan
-        Route::get('/applications', [AdminApplicationController::class, 'index'])->name('application.index');
-        Route::get('/application/create', [AdminApplicationController::class, 'create'])->name('application.create');
-        Route::post('/application/store', [AdminApplicationController::class, 'store'])->name('application.store');
-        Route::get('/application/{id}', [AdminApplicationController::class, 'show'])->name('application.show');
-        Route::post('/application/{id}/process', [AdminApplicationController::class, 'process'])->name('application.process');
-        Route::get('/application/{id}/print', [AdminApplicationController::class, 'printLetter'])->name('application.print');
-
-        // Module Distribusi
-        Route::post('/distribution/store', [DistributionController::class, 'store'])->name('distribution.store');
-        Route::put('/distribution/{id}', [DistributionController::class, 'update'])->name('distribution.update');
-
-        // Module Master Data (Hanya Admin)
-        Route::middleware('role:admin')->group(function () {
-            // CRUD Jenis Layanan (Sudah ada fungsi create/store di Controller)
-            Route::resource('services', ServiceTypeController::class)->except(['show']);
-            Route::resource('users', UserController::class)->except(['show']);
-        });
-    });
+    
+    // Kelola Permohonan
+    Route::get('/applications', [AdminApplicationController::class, 'index'])->name('application.index');
+    Route::get('/applications/{id}', [AdminApplicationController::class, 'show'])->name('application.show');
+    Route::post('/applications/{id}/process', [AdminApplicationController::class, 'process'])->name('application.process');
+    Route::post('/applications/{id}/verify', [AdminApplicationController::class, 'verify'])->name('application.verify');
+    Route::post('/applications/{id}/approve', [AdminApplicationController::class, 'approve'])->name('application.approve');
+    Route::post('/applications/{id}/reject', [AdminApplicationController::class, 'reject'])->name('application.reject');
+    Route::get('/applications/{id}/print', [AdminApplicationController::class, 'printLetter'])->name('application.print');
+    
+    // Export Laporan
+    Route::get('/export', function() {
+        return view('admin.reports.export');
+    })->name('export.page');
+    Route::get('/export/pdf', [AdminApplicationController::class, 'exportPdf'])->name('export.pdf');
+    Route::get('/export/excel', [AdminApplicationController::class, 'exportExcel'])->name('export.excel');
+    
+    // Master Data - Jenis Layanan
+    Route::resource('services', ServiceTypeController::class);
+    
+    // Master Data - User Management
+    Route::resource('users', UserController::class);
 });
+
+// Redirect /dashboard ke dashboard yang sesuai dengan role
+Route::get('/dashboard', function () {
+    if (auth()->user()->isAdmin()) {
+        return redirect()->route('admin.dashboard');
+    } else {
+        return redirect()->route('masyarakat.dashboard');
+    }
+})->middleware('auth')->name('dashboard');
