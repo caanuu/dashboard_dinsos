@@ -14,7 +14,7 @@ class UserController extends Controller
     public function index()
     {
         $users = User::all();
-        return view('admin.applications.users.index', compact('users'));
+        return view('admin.users.index', compact('users'));
     }
 
     // Method untuk create user dari halaman Admin (JANGAN DIHAPUS)

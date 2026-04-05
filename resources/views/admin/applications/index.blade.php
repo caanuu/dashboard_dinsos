@@ -3,15 +3,21 @@
 
 @section('content')
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <div class="d-flex gap-2">
-            <input type="text" class="form-control form-control-sm" placeholder="Find a request..." style="width: 300px;">
-            <button class="btn btn-sm btn-outline-secondary fw-bold">Type: All</button>
+        <div class="d-flex gap-2 flex-grow-1">
+            <input type="text" id="searchInput" class="form-control form-control-sm" placeholder="Cari nomor tiket, nama, NIK..." style="max-width: 300px;">
+            
+            <select id="statusFilter" class="form-select form-select-sm" style="max-width: 150px;">
+                <option value="">Semua Status</option>
+                <option value="pending">Pending</option>
+                <option value="verified">Verified</option>
+                <option value="approved">Approved</option>
+                <option value="rejected">Rejected</option>
+            </select>
+
+            <button id="resetFilter" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-redo me-1"></i>Reset
+            </button>
         </div>
-        @if (auth()->user()->role != 'kadis')
-            <a href="{{ route('admin.application.create') }}" class="btn btn-primary btn-sm">
-                <i class="far fa-plus-square me-1"></i> New request
-            </a>
-        @endif
     </div>
 
     <div class="gh-box">
@@ -105,13 +111,30 @@
                             className: 'text-end',
                             render: function(data, type, row) {
                                 // Extract URL from the button string or build it manually
-                                return `<a href="/admin/application/${row.id}" class="btn btn-sm btn-outline-secondary" style="font-size:12px;">View</a>`;
+                                return `<a href="/admin/applications/${row.id}" class="btn btn-sm btn-outline-secondary" style="font-size:12px;">View</a>`;
                             }
                         },
                     ],
                     order: [
                         [5, 'desc']
                     ]
+                });
+
+                // Search functionality
+                $('#searchInput').on('keyup', function() {
+                    table.search(this.value).draw();
+                });
+
+                // Status filter
+                $('#statusFilter').on('change', function() {
+                    table.column(4).search(this.value).draw();
+                });
+
+                // Reset filter
+                $('#resetFilter').on('click', function() {
+                    $('#searchInput').val('');
+                    $('#statusFilter').val('');
+                    table.search('').columns().search('').draw();
                 });
             });
         </script>

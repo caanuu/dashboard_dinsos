@@ -41,9 +41,28 @@ class User extends Authenticatable
         return $this->role === $roles;
     }
 
+<<<<<<< HEAD
     // Relasi ke Data Penduduk (jika user adalah warga)
     public function resident()
     {
         return $this->hasOne(Resident::class, 'nik', 'nik');
+=======
+    // Helper untuk cek apakah user adalah admin/petugas
+    public function isAdmin()
+    {
+        return $this->role === 'admin';
+    }
+
+    // Helper untuk cek apakah user adalah masyarakat
+    public function isMasyarakat()
+    {
+        return $this->role === 'masyarakat';
+    }
+
+    // Relasi ke applications (untuk masyarakat)
+    public function applications()
+    {
+        return $this->hasMany(Application::class);
+>>>>>>> f1cc7d539ac5d4c060d6b0c9d84d7f1eade675ea
     }
 }

@@ -12,9 +12,15 @@ class Application extends Model
     {
         return $this->belongsTo(Resident::class);
     }
+    
     public function serviceType()
     {
         return $this->belongsTo(ServiceType::class);
+    }
+    
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
     public function logs()
     {

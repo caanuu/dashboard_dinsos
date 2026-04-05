@@ -56,7 +56,18 @@ class AdminApplicationController extends Controller
             $statusRaw['distributed'] ?? 0,
         ];
 
-        return view('dashboard', compact('stats', 'chartData', 'statusData'));
+        // LOGIC GRAFIK BAR - JENIS LAYANAN
+        $serviceRaw = Application::join('service_types', 'applications.service_type_id', '=', 'service_types.id')
+            ->selectRaw('service_types.nama_layanan, COUNT(*) as total')
+            ->groupBy('service_types.id', 'service_types.nama_layanan')
+            ->orderBy('total', 'desc')
+            ->limit(5)
+            ->get();
+
+        $serviceLabels = $serviceRaw->pluck('nama_layanan')->toArray();
+        $serviceData = $serviceRaw->pluck('total')->toArray();
+
+        return view('dashboard', compact('stats', 'chartData', 'statusData', 'serviceLabels', 'serviceData'));
     }
 
     // 2. HALAMAN LIST (INDEX)
@@ -244,5 +255,89 @@ class AdminApplicationController extends Controller
 
         $pdf = Pdf::loadView('admin.applications.pdf.letter_template', compact('app'));
         return $pdf->stream('Surat_' . $app->nomor_tiket . '.pdf');
+    }
+
+    // 8. EXPORT LAPORAN PDF
+    public function exportPdf(Request $request)
+    {
+        $query = Application::with(['resident', 'serviceType']);
+
+        // Filter berdasarkan tanggal jika ada
+        if ($request->has('start_date') && $request->has('end_date')) {
+            $query->whereBetween('created_at', [$request->start_date, $request->end_date]);
+        }
+
+        // Filter berdasarkan status jika ada
+        if ($request->has('status') && $request->status != 'all') {
+            $query->where('status', $request->status);
+        }
+
+        $applications = $query->latest()->get();
+
+        $pdf = Pdf::loadView('admin.reports.pdf', compact('applications'))
+            ->setPaper('a4', 'landscape');
+
+        return $pdf->download('Laporan_Permohonan_' . date('Y-m-d') . '.pdf');
+    }
+
+    // 9. EXPORT LAPORAN EXCEL
+    public function exportExcel(Request $request)
+    {
+        $query = Application::with(['resident', 'serviceType']);
+
+        // Filter berdasarkan tanggal jika ada
+        if ($request->has('start_date') && $request->has('end_date')) {
+            $query->whereBetween('created_at', [$request->start_date, $request->end_date]);
+        }
+
+        // Filter berdasarkan status jika ada
+        if ($request->has('status') && $request->status != 'all') {
+            $query->where('status', $request->status);
+        }
+
+        $applications = $query->latest()->get();
+
+        // Buat CSV sederhana
+        $filename = 'Laporan_Permohonan_' . date('Y-m-d') . '.csv';
+        
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ];
+
+        $callback = function() use ($applications) {
+            $file = fopen('php://output', 'w');
+            
+            // Header CSV
+            fputcsv($file, [
+                'No',
+                'Nomor Tiket',
+                'Nama Pemohon',
+                'NIK',
+                'Jenis Layanan',
+                'Status',
+                'Tanggal Pengajuan',
+                'Skor Kelayakan'
+            ]);
+
+            // Data
+            $no = 1;
+            foreach ($applications as $app) {
+                fputcsv($file, [
+                    $no++,
+                    $app->nomor_tiket,
+                    $app->resident->nama_lengkap,
+                    $app->resident->nik,
+                    $app->serviceType->nama_layanan,
+                    strtoupper($app->status),
+                    $app->created_at->format('d/m/Y H:i'),
+                    $app->skor_kelayakan
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 }

@@ -1,5 +1,7 @@
 @extends('layouts.admin')
 
+@section('page-title', 'Dashboard Overview')
+
 @section('content')
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -190,6 +192,45 @@
         </div>
     </div>
 
+    {{-- BARIS 4: PIE CHART & BAR CHART --}}
+    <div class="row">
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3">
+                    <h6 class="m-0 fw-bold text-primary">
+                        <i class="fas fa-chart-pie me-2"></i>Distribusi Status Permohonan
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-area" style="height: 300px;">
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                    <div class="mt-3 text-center small">
+                        <span class="badge bg-warning text-dark me-2">Pending: {{ $stats['pending'] }}</span>
+                        <span class="badge bg-info me-2">Verified: {{ $stats['verified'] }}</span>
+                        <span class="badge bg-success me-2">Approved: {{ $stats['approved'] }}</span>
+                        <span class="badge bg-danger">Rejected: {{ $stats['rejected'] }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6 mb-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-white py-3">
+                    <h6 class="m-0 fw-bold text-primary">
+                        <i class="fas fa-chart-bar me-2"></i>Jenis Layanan Terpopuler
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="chart-area" style="height: 300px;">
+                        <canvas id="serviceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         const ctxTren = document.getElementById('trenChart').getContext('2d');
         let gradient = ctxTren.createLinearGradient(0, 0, 0, 400);
@@ -224,6 +265,102 @@
                 scales: {
                     y: {
                         beginAtZero: true,
+                        grid: {
+                            borderDash: [2, 2]
+                        }
+                    },
+                    x: {
+                        grid: {
+                            display: false
+                        }
+                    }
+                }
+            }
+        });
+
+        // Pie Chart - Status Distribution
+        const ctxStatus = document.getElementById('statusChart').getContext('2d');
+        new Chart(ctxStatus, {
+            type: 'doughnut',
+            data: {
+                labels: ['Pending', 'Verified', 'Approved', 'Rejected'],
+                datasets: [{
+                    data: {{ json_encode(array_values($statusData)) }},
+                    backgroundColor: [
+                        '#ffc107',
+                        '#17a2b8',
+                        '#28a745',
+                        '#dc3545'
+                    ],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            padding: 15,
+                            font: {
+                                size: 12
+                            }
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.label || '';
+                                let value = context.parsed || 0;
+                                let total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                let percentage = ((value / total) * 100).toFixed(1);
+                                return label + ': ' + value + ' (' + percentage + '%)';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Bar Chart - Service Types
+        const ctxService = document.getElementById('serviceChart').getContext('2d');
+        new Chart(ctxService, {
+            type: 'bar',
+            data: {
+                labels: {!! json_encode($serviceLabels ?? ['BPJS-PBI', 'PKH', 'Sembako', 'Lainnya']) !!},
+                datasets: [{
+                    label: 'Jumlah Permohonan',
+                    data: {!! json_encode($serviceData ?? [0, 0, 0, 0]) !!},
+                    backgroundColor: [
+                        'rgba(99, 102, 241, 0.8)',
+                        'rgba(139, 92, 246, 0.8)',
+                        'rgba(16, 185, 129, 0.8)',
+                        'rgba(245, 158, 11, 0.8)'
+                    ],
+                    borderColor: [
+                        'rgb(99, 102, 241)',
+                        'rgb(139, 92, 246)',
+                        'rgb(16, 185, 129)',
+                        'rgb(245, 158, 11)'
+                    ],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        },
                         grid: {
                             borderDash: [2, 2]
                         }
