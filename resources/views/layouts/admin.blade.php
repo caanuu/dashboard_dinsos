@@ -60,7 +60,6 @@
             color: white;
             font-weight: 600;
             font-size: 20px;
-            /* Sedikit diperbesar */
             display: flex;
             align-items: center;
             gap: 12px;
@@ -89,12 +88,10 @@
         .gh-container {
             display: flex;
             max-width: 1400px;
-            /* Membatasi lebar agar tidak terlalu stretch */
             margin: 0 auto;
             padding: 24px;
             gap: 24px;
             align-items: flex-start;
-            /* Penting untuk sidebar sticky */
         }
 
         /* --- SIDEBAR --- */
@@ -103,7 +100,6 @@
             flex-shrink: 0;
             position: sticky;
             top: 90px;
-            /* Jarak dari header */
         }
 
         .menu-heading {
@@ -137,12 +133,10 @@
 
         .nav-item.active {
             background-color: #eaeef2;
-            /* GitHub style active state is subtle or uses border */
             font-weight: 600;
             position: relative;
         }
 
-        /* Garis biru indikator active ala GitHub Settings */
         .nav-item.active::before {
             content: '';
             position: absolute;
@@ -151,7 +145,6 @@
             bottom: 6px;
             width: 4px;
             background-color: #fd8c73;
-            /* Atau biru #0969da, oranye sering dipakai di menu */
             border-radius: 6px;
         }
 
@@ -181,7 +174,6 @@
             height: 40px;
             border-radius: 50%;
             background-color: #ddf4ff;
-            /* Light blue */
             color: #0969da;
             display: flex;
             align-items: center;
@@ -194,7 +186,6 @@
         .gh-main {
             flex-grow: 1;
             min-width: 0;
-            /* Mencegah overflow pada flex item */
         }
 
         /* Card Style ala GitHub (Box) */
@@ -203,7 +194,6 @@
             border: 1px solid var(--gh-border);
             border-radius: 6px;
             overflow: hidden;
-            /* Agar border radius anak elemen tidak bocor */
         }
 
         .gh-box-header {
@@ -293,7 +283,8 @@
             <button class="btn btn-link text-white d-md-none me-3 p-0" id="menu-toggle">
                 <i class="fas fa-bars fs-5"></i>
             </button>
-            <a href="{{ route('dashboard') }}" class="gh-logo">
+            <a href="{{ Auth::user()->role === 'warga' ? route('warga.dashboard') : route('dashboard') }}"
+                class="gh-logo">
                 <i class="fab fa-github fa-lg"></i>
                 <span>SIMPEL-SOS</span>
             </a>
@@ -301,11 +292,6 @@
 
         <div class="d-flex align-items-center gap-3">
             <div class="d-none d-md-block position-relative">
-                {{-- <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary"
-                    placeholder="Type / to search" style="width: 240px; background: rgba(255,255,255,0.12) !important;">
-                <span
-                    class="position-absolute end-0 top-50 translate-middle-y me-2 border border-secondary rounded px-1 text-muted"
-                    style="font-size: 10px;">/</span> --}}
             </div>
 
             <div class="vr bg-secondary mx-1 opacity-25"></div>
@@ -320,9 +306,23 @@
                         class="rounded-circle border border-secondary" alt="Avatar">
                     <i class="fas fa-caret-down" style="font-size: 10px;"></i>
                 </a>
+
                 <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="font-size: 13px;">
-                    <li><span class="dropdown-header">Signed in as <strong
-                                class="text-dark">{{ Auth::user()->name }}</strong></span></li>
+                    <li>
+                        <div class="px-3 py-2 small text-muted">
+                            Signed in as <br>
+                            {{-- MODIFIKASI: Jika Warga baru bisa klik ke profil, jika admin hanya text --}}
+                            @if (Auth::user()->role === 'warga')
+                                <a href="{{ route('warga.dashboard') }}" class="fw-bold text-dark text-decoration-none">
+                                    {{ Auth::user()->name }}
+                                </a>
+                            @else
+                                <span class="fw-bold text-dark">
+                                    {{ Auth::user()->name }}
+                                </span>
+                            @endif
+                        </div>
+                    </li>
                     <li>
                         <hr class="dropdown-divider">
                     </li>
@@ -340,44 +340,72 @@
     <div class="gh-container">
 
         <aside class="gh-sidebar" id="sidebar-wrapper">
-            <div class="profile-box d-flex d-md-none">
-                <div class="avatar-circle">
-                    {{ substr(Auth::user()->name, 0, 1) }}
+            {{-- MODIFIKASI: Profil Mobile (Hanya link jika warga) --}}
+            @if (Auth::user()->role === 'warga')
+                <a href="{{ route('profile.edit') }}"
+                    class="profile-box d-flex d-md-none text-decoration-none text-dark">
+                    <div class="avatar-circle">
+                        {{ substr(Auth::user()->name, 0, 1) }}
+                    </div>
+                    <div>
+                        <div class="fw-bold">{{ Auth::user()->name }}</div>
+                        <div class="text-muted small">{{ strtoupper(Auth::user()->role) }}</div>
+                    </div>
+                </a>
+            @else
+                {{-- Tampilan untuk Admin/Operator/Kadis (Tanpa Link) --}}
+                <div class="profile-box d-flex d-md-none text-dark">
+                    <div class="avatar-circle">
+                        {{ substr(Auth::user()->name, 0, 1) }}
+                    </div>
+                    <div>
+                        <div class="fw-bold">{{ Auth::user()->name }}</div>
+                        <div class="text-muted small">{{ strtoupper(Auth::user()->role) }}</div>
+                    </div>
                 </div>
-                <div>
-                    <div class="fw-bold">{{ Auth::user()->name }}</div>
-                    <div class="text-muted small">{{ strtoupper(Auth::user()->role) }}</div>
-                </div>
-            </div>
+            @endif
 
             <div class="menu-heading">Dashboard</div>
-            <a href="{{ route('dashboard') }}" class="nav-item {{ request()->routeIs('dashboard') ? 'active' : '' }}">
+
+            {{-- LOGIKA DASHBOARD --}}
+            @php
+                $dashboardRoute = auth()->user()->role === 'warga' ? route('warga.dashboard') : route('dashboard');
+                $isActive =
+                    auth()->user()->role === 'warga'
+                        ? request()->routeIs('warga.dashboard')
+                        : request()->routeIs('dashboard');
+            @endphp
+
+            <a href="{{ $dashboardRoute }}" class="nav-item {{ $isActive ? 'active' : '' }}">
                 <i class="fas fa-chart-line"></i> Overview
             </a>
 
-            <div class="menu-heading">Aplikasi</div>
-            <a href="{{ route('admin.application.index') }}"
-                class="nav-item {{ request()->routeIs('admin.application.index') || request()->routeIs('admin.application.show') ? 'active' : '' }}">
-                <i class="far fa-file-alt"></i> Data Permohonan
-            </a>
+            {{-- MENU ADMIN --}}
+            @if (auth()->user()->role !== 'warga')
+                <div class="menu-heading">Aplikasi</div>
+                <a href="{{ route('admin.application.index') }}"
+                    class="nav-item {{ request()->routeIs('admin.application.index') || request()->routeIs('admin.application.show') ? 'active' : '' }}">
+                    <i class="far fa-file-alt"></i> Data Permohonan
+                </a>
 
-            @if (in_array(auth()->user()->role, ['admin', 'operator']))
-                <a href="{{ route('admin.application.create') }}"
-                    class="nav-item {{ request()->routeIs('admin.application.create') ? 'active' : '' }}">
-                    <i class="fas fa-plus"></i> Input Baru
-                </a>
-            @endif
+                @if (in_array(auth()->user()->role, ['admin', 'operator']))
+                    <a href="{{ route('admin.application.create') }}"
+                        class="nav-item {{ request()->routeIs('admin.application.create') ? 'active' : '' }}">
+                        <i class="fas fa-plus"></i> Input Baru
+                    </a>
+                @endif
 
-            @if (auth()->user()->role == 'admin')
-                <div class="menu-heading">Administrator</div>
-                <a href="{{ route('admin.services.index') }}"
-                    class="nav-item {{ request()->routeIs('admin.services.*') ? 'active' : '' }}">
-                    <i class="fas fa-tags"></i> Jenis Layanan
-                </a>
-                <a href="{{ route('admin.users.index') }}"
-                    class="nav-item {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
-                    <i class="fas fa-users"></i> Manajemen User
-                </a>
+                @if (auth()->user()->role == 'admin')
+                    <div class="menu-heading">Administrator</div>
+                    <a href="{{ route('admin.services.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.services.*') ? 'active' : '' }}">
+                        <i class="fas fa-tags"></i> Jenis Layanan
+                    </a>
+                    <a href="{{ route('admin.users.index') }}"
+                        class="nav-item {{ request()->routeIs('admin.users.*') ? 'active' : '' }}">
+                        <i class="fas fa-users"></i> Manajemen User
+                    </a>
+                @endif
             @endif
 
             <div class="mt-4 pt-3 border-top d-none d-md-block">
@@ -386,7 +414,14 @@
                         {{ substr(Auth::user()->name, 0, 1) }}
                     </div>
                     <div style="line-height: 1.2;">
-                        <div class="fw-bold" style="font-size: 13px;">{{ Auth::user()->name }}</div>
+                        {{-- MODIFIKASI: Profil Footer Desktop (Hanya link jika warga) --}}
+                        <div class="fw-bold" style="font-size: 13px;">
+                            @if (Auth::user()->role === 'warga')
+                                <a href="{{ route('profile.edit') }}" class="text-dark">{{ Auth::user()->name }}</a>
+                            @else
+                                <span class="text-dark">{{ Auth::user()->name }}</span>
+                            @endif
+                        </div>
                         <div class="text-muted" style="font-size: 11px;">{{ ucfirst(Auth::user()->role) }}</div>
                     </div>
                 </div>

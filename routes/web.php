@@ -7,6 +7,7 @@ use App\Http\Controllers\PublicController;
 use App\Http\Controllers\DistributionController;
 use App\Http\Controllers\ServiceTypeController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\WargaController;
 
 /*
 |--------------------------------------------------------------------------
@@ -20,7 +21,7 @@ Route::get('/tracking', [PublicController::class, 'tracking'])->name('tracking')
 Route::get('/lapor', [PublicController::class, 'lapor'])->name('lapor.index');
 Route::post('/lapor', [PublicController::class, 'storeLapor'])->name('lapor.store');
 
-// TAMBAHAN: PERMOHONAN ONLINE
+// Permohonan Publik (Tanpa Login)
 Route::get('/ajukan', [PublicController::class, 'createApplication'])->name('public.application.create');
 Route::post('/ajukan', [PublicController::class, 'storeApplication'])->name('public.application.store');
 
@@ -28,15 +29,31 @@ Route::post('/ajukan', [PublicController::class, 'storeApplication'])->name('pub
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [AuthController::class, 'login']);
+    Route::get('/register', [AuthController::class, 'showRegisterForm'])->name('register');
+    Route::post('/register', [AuthController::class, 'register']);
 });
 
-// 3. AREA ADMIN (DASHBOARD)
-Route::middleware(['auth'])->group(function () {
-    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+Route::post('/logout', [AuthController::class, 'logout'])->name('logout')->middleware('auth');
+
+// 3. AREA WARGA (KHUSUS WARGA)
+Route::middleware(['auth', 'role:warga'])->prefix('warga')->name('warga.')->group(function () {
+    Route::get('/halaman', [WargaController::class, 'index'])->name('dashboard');
+    Route::get('/ajukan', [WargaController::class, 'create'])->name('application.create');
+    Route::post('/ajukan', [WargaController::class, 'store'])->name('application.store');
+});
+
+// --- RUTE PROFILE DIPINDAHKAN KE SINI (HANYA UNTUK WARGA) ---
+// Gunakan middleware role:warga agar admin tidak bisa akses
+Route::middleware(['auth', 'role:warga'])->group(function () {
+    Route::get('/profile', [UserController::class, 'editProfile'])->name('profile.edit');
+    Route::put('/profile', [UserController::class, 'updateProfile'])->name('profile.update');
+});
+
+// 4. AREA ADMIN / PETUGAS
+Route::middleware(['auth', 'role:admin,operator,kadis'])->prefix('admin')->group(function () {
     Route::get('/dashboard', [AdminApplicationController::class, 'dashboard'])->name('dashboard');
 
-    Route::prefix('admin')->name('admin.')->group(function () {
-        // Module Permohonan
+    Route::name('admin.')->group(function () {
         Route::get('/applications', [AdminApplicationController::class, 'index'])->name('application.index');
         Route::get('/application/create', [AdminApplicationController::class, 'create'])->name('application.create');
         Route::post('/application/store', [AdminApplicationController::class, 'store'])->name('application.store');
@@ -44,13 +61,10 @@ Route::middleware(['auth'])->group(function () {
         Route::post('/application/{id}/process', [AdminApplicationController::class, 'process'])->name('application.process');
         Route::get('/application/{id}/print', [AdminApplicationController::class, 'printLetter'])->name('application.print');
 
-        // Module Distribusi
         Route::post('/distribution/store', [DistributionController::class, 'store'])->name('distribution.store');
         Route::put('/distribution/{id}', [DistributionController::class, 'update'])->name('distribution.update');
 
-        // Module Master Data (Hanya Admin)
         Route::middleware('role:admin')->group(function () {
-            // CRUD Jenis Layanan (Sudah ada fungsi create/store di Controller)
             Route::resource('services', ServiceTypeController::class)->except(['show']);
             Route::resource('users', UserController::class)->except(['show']);
         });

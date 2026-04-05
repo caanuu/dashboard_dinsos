@@ -121,13 +121,17 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto align-items-center">
-                    <li class="nav-item">
+                    <li class="nav-item gap-2 d-flex">
                         @auth
-                            <a href="{{ route('dashboard') }}"
-                                class="btn btn-primary btn-sm rounded-pill px-4 fw-bold shadow-lg">Dashboard</a>
+                            @if (Auth::user()->role == 'warga')
+                                <a href="{{ route('warga.dashboard') }}"
+                                    class="btn btn-primary btn-sm rounded-pill px-4 fw-bold shadow-lg">Area Warga</a>
+                            @else
+                                <a href="{{ route('dashboard') }}"
+                                    class="btn btn-primary btn-sm rounded-pill px-4 fw-bold shadow-lg">Dashboard Petugas</a>
+                            @endif
                         @else
-                            <a href="{{ route('login') }}"
-                                class="btn btn-outline-light btn-sm rounded-pill px-4 shadow-sm">Login Petugas</a>
+                            <a href="{{ route('login') }}" class="btn btn-outline-light btn-sm rounded-pill px-3">Masuk</a>
                         @endauth
                     </li>
                 </ul>
@@ -304,7 +308,7 @@
                 </div>
                 <div class="col-md-6 text-md-end">
                     <p class="mb-1 fw-bold">Pusat Layanan Sosial</p>
-                    <small class="text-white-50">&copy; 2026 Dinas Sosial Kota Contoh.</small>
+                    <small class="text-white-50">&copy; 2026 Dinas Sosial.</small>
                 </div>
             </div>
         </div>
